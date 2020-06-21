@@ -14,7 +14,7 @@
 */
 
 
-  /*            
+  /*
    *    ---------
    *   _|_      |
    *            |
@@ -26,9 +26,9 @@
    * _|____|_   |
    * |      |   |
    * |  T   |-P--     Cuve 2 : - T : capteur de T°
-   * |S    S|                  - S : 2 thermo Resistance
+   * |     S|                  - S : thermo Resistance
    * |______|                  - P : Pompe
-   * 
+   *
    * PHASE 1 : <--------------------------------------
    *  R : ON                                         |
    *  Pompe : OFF                                    |
@@ -47,7 +47,7 @@
    *  ||Si|| Temps = 10 min et boucle =/= 4 ---------|
    *  ||Sinon||  ____
    *                 |
-   *                 v                 
+   *                 v
    * PHASE 3 : <--------------------------------------
    *  R : ON                                         |
    *  Pompe : OFF                                    |
@@ -68,29 +68,29 @@
    *                 |
    *                 v
    * PHASE 5 :
-   *  R : ON                                         
-   *  Pompe : OFF                                    
-   *  Vanne : ON                                     
-   *  (L'eau est dans la cuve 2 et chauffe à 70°)    
-   *                                                 
-   *  ||Si|| T° = 70° ____                           
-   *                      |                          
-   *                      v                          
-   * PHASE 6 :                                       
-   *  Pompe : ON                                     
-   *  Vanne : OFF                                    
-   *  R : OFF                                        
-   *  (L'eau est dans la cuve 1 et noye le malt)     
-   *                                                 
-   *  ||Si|| Temps = 10 min ____                           
-   *                            |                          
-   *                            v    
-   *    
+   *  R : ON
+   *  Pompe : OFF
+   *  Vanne : ON
+   *  (L'eau est dans la cuve 2 et chauffe à 70°)
+   *
+   *  ||Si|| T° = 70° ____
+   *                      |
+   *                      v
+   * PHASE 6 :
+   *  Pompe : ON
+   *  Vanne : OFF
+   *  R : OFF
+   *  (L'eau est dans la cuve 1 et noye le malt)
+   *
+   *  ||Si|| Temps = 10 min ____
+   *                            |
+   *                            v
+   *
    *  PHASE 7 :
    *   Vanne : ON
    *   R : ON
    *   Pompe : OFF
-   *   
+   *
    *   ||Si|| Temps = 50 min ____
    *                             |
    *                             v
@@ -98,15 +98,15 @@
    *   Bip : ON
    *   delay(1000)
    *   Bip : OFF
-   *    
+   *
    *   ||Si|| Temps = 10 min ___
    *                             |
    *                             v
-   *  PHASE 9 : 
+   *  PHASE 9 :
    *  Bip : ON
-   *  
+   *
    *  FIN
-   * 
+   *
   */
 
 //  .. 2x 220V AC Resistance
@@ -116,15 +116,15 @@ const int heat2_PIN = 0;
 int heat2_Value = 0;
 
 //  .. 12 V DC Pomp for hot water Max ~ 8L/Min
-const int pump_PIN = 7;
+const int pump_PIN = 5;
 int pump_Value = 0;
 
 //  .. 2x 12 V DC Solenoid valve ~ 1.3 l/min
-const int valve1_PIN = 5;
+const int valve1_PIN = 7;
 int valve1_Value = 0;
 
 //Buzzer
-const int buz_PIn = 0;
+const int buz_PIn = 8;
 int buz_Value = 0;
 
 // 2x Temperature sensor : DS18B20
@@ -156,43 +156,71 @@ int PHASE4_Time;
 int PHASE6_Time;
 int PHASE7_Time;
 int PHASE8_Time;
+int PHASE9_Time;
+
+int PHASE10_Time;
+
 
 int boucle1;
 int boucle2;
+int boucle3;
+int boucle4;
+int nbBoucle1;
+int nbBoucle2;
+int nbBoucle3;
+int nbBoucle4;
+
+int palier1, palier2, palier3, palier4;
 
 
 void setup() {
-  
-  // OUTPUT  
+
+  // OUTPUT
   pinMode(heat1_PIN, OUTPUT);
   //pinMode(heat2_PIN, OUTPUT);
-  
+
   pinMode(pump_PIN, OUTPUT);
-  
+
   pinMode(valve1_PIN, OUTPUT);
-    
-  //pinMode(buz_PIn, OUTPUT);
-  
+
+  pinMode(buz_PIn, OUTPUT);
+
   // Initialize
   digitalWrite(heat1_PIN,LOW);
   //digitalWrite(heat2_PIN,LOW);
-  
+
   digitalWrite(pump_PIN,LOW);
-  
+
   digitalWrite(valve1_PIN,LOW);
-  
- // digitalWrite(buz_PIn,LOW);
+
+  digitalWrite(buz_PIn,HIGH);
+  delay(10000UL);
+  digitalWrite(buz_PIn,LOW);
 
   boucle1 = 0;
   boucle2 = 0;
+  boucle3 = 0;
+  boucle4 = 0;
+  nbBoucle1 = 1;
+  nbBoucle2 = 8;
+  nbBoucle3 = 4;
+  nbBoucle4 = 1;
 
   PHASE = 0;
-  PHASE2_Time = 1000;
-  PHASE4_Time = 1000;
-  PHASE6_Time = 1000;
-  PHASE7_Time = 1000;
-  PHASE8_Time = 1000;
-  
+  PHASE2_Time = 10; //minutes : 10min*2boucle = 20min
+  PHASE4_Time = 5; // 5*4 = 20min;
+  PHASE6_Time = 5; // 5*4 = 20min
+
+  PHASE8_Time = 5; // 2*5 = 10min
+  PHASE9_Time = 30; // 30min ebullition
+  PHASE10_Time = 5; // + 5 amertume
+
+  palier1 = 56;
+  palier2 = 66;
+  palier3 = 68;
+  palier4 = 76;
+
+
   //LCD Init
   lcd.init();
   lcd.backlight();
@@ -204,15 +232,15 @@ void setup() {
 }
 
 void loop() {
-  
+
   if (getTemperature(&T_Value[0], true) != READ_OK) {
     Serial.println(F("Erreur de lecture du capteur 1"));
     return;
   }
-  
+
   T1_Value = T_Value[0];
   Serial.println(T1_Value);
-  
+
   switch(PHASE){
     case 0:
         lcd.clear();
@@ -233,7 +261,7 @@ void loop() {
         //digitalWrite(heat2_PIN,HIGH);
         digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,HIGH);
-        if(T1_Value>50 && getTemperature(&T_Value[0], true) == READ_OK)
+        if(T1_Value>palier1 && getTemperature(&T_Value[0], true) == READ_OK)
         {
           PHASE = 2;
         }
@@ -250,9 +278,13 @@ void loop() {
         digitalWrite(heat1_PIN,LOW);
         //digitalWrite(heat2_PIN,LOW);
         digitalWrite(pump_PIN,HIGH);
+        delay(60000UL);
+        digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,LOW);
-        delay(PHASE2_Time);
-        if(boucle1<4)
+
+        delay(600000UL);
+
+        if(boucle1<=nbBoucle1)
         {
           PHASE = 1;
         }
@@ -272,7 +304,7 @@ void loop() {
         //digitalWrite(heat2_PIN,HIGH);
         digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,HIGH);
-        if(T1_Value>60 && getTemperature(&T_Value[0], true) == READ_OK)
+        if(T1_Value>palier2 && getTemperature(&T_Value[0], true) == READ_OK)
         {
           PHASE = 4;
         }
@@ -289,14 +321,17 @@ void loop() {
         digitalWrite(heat1_PIN,LOW);
         //digitalWrite(heat2_PIN,LOW);
         digitalWrite(pump_PIN,HIGH);
+        delay(60000UL);
+        digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,LOW);
-        delay(PHASE4_Time);
-        if(boucle1<2)
+        //delay(1000*60*PHASE4_Time);
+        delay(300000UL);
+        if(boucle2<=nbBoucle2)
         {
-          PHASE = 2;
+          PHASE = 3;
         }
         else{
-          PHASE = 5;
+          PHASE = 7;
         }
       break;
     case 5:
@@ -311,12 +346,13 @@ void loop() {
         //digitalWrite(heat2_PIN,HIGH);
         digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,HIGH);
-        if(T1_Value>70 && getTemperature(&T_Value[0], true) == READ_OK)
+        if(T1_Value>palier3 && getTemperature(&T_Value[0], true) == READ_OK)
         {
           PHASE = 6;
         }
       break;
     case 6:
+        boucle3 ++;
         lcd.clear();
         lcd.setCursor(7,0);
         lcd.print("STAGE6");
@@ -327,9 +363,18 @@ void loop() {
         digitalWrite(heat1_PIN,LOW);
         //digitalWrite(heat2_PIN,LOW);
         digitalWrite(pump_PIN,HIGH);
+        delay(30000UL);
+        digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,LOW);
-        delay(PHASE6_Time);
+        //delay(1000*60*PHASE6_Time);
+        delay(300000UL);
+        if(boucle3<=nbBoucle3)
+        {
+          PHASE = 5;
+        }
+        else{
           PHASE = 7;
+        }
       break;
     case 7:
         lcd.clear();
@@ -343,10 +388,13 @@ void loop() {
         //digitalWrite(heat2_PIN,HIGH);
         digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,HIGH);
-        delay(PHASE7_Time);
+        if(T1_Value>palier4 && getTemperature(&T_Value[0], true) == READ_OK)
+        {
           PHASE = 8;
+        }
       break;
     case 8:
+        boucle4 ++;
         lcd.clear();
         lcd.setCursor(7,0);
         lcd.print("STAGE8");
@@ -354,15 +402,21 @@ void loop() {
         lcd.print("T :");
         lcd.setCursor(1,8);
         lcd.print(T1_Value);
-        digitalWrite(heat1_PIN,HIGH);
-        //digitalWrite(heat2_PIN,HIGH);
+        digitalWrite(heat1_PIN,LOW);
+        //digitalWrite(heat2_PIN,LOW);
+        digitalWrite(pump_PIN,HIGH);
+        delay(30000UL);
         digitalWrite(pump_PIN,LOW);
-        digitalWrite(valve1_PIN,HIGH);
-        //digitalWrite(buz_PIn,HIGH);
-        //delay(5000);
-        //digitalWrite(buz_PIn,LOW);
-        delay(PHASE8_Time);
+        digitalWrite(valve1_PIN,LOW);
+        //delay(1000*60*PHASE8_Time);
+        delay(300000UL);
+        if(boucle4<=nbBoucle4)
+        {
+          PHASE = 7;
+        }
+        else{
           PHASE = 9;
+        }
       break;
     case 9:
         lcd.clear();
@@ -372,11 +426,53 @@ void loop() {
         lcd.print("T :");
         lcd.setCursor(1,8);
         lcd.print(T1_Value);
+        digitalWrite(heat1_PIN,HIGH);
+        //digitalWrite(heat2_PIN,HIGH);
+        digitalWrite(pump_PIN,LOW);
+        digitalWrite(valve1_PIN,HIGH);
+        digitalWrite(buz_PIn,HIGH);
+        delay(5000);
+        digitalWrite(buz_PIn,LOW);
+        //delay(1000*60*PHASE9_Time);
+        delay(1800000UL);
+          PHASE = 10;
+      break;
+    case 10:
+        lcd.clear();
+        lcd.setCursor(7,0);
+        lcd.print("STAGE10");
+        lcd.setCursor(1,2);
+        lcd.print("T :");
+        lcd.setCursor(1,8);
+        lcd.print(T1_Value);
+        digitalWrite(heat1_PIN,HIGH);
+        //digitalWrite(heat2_PIN,HIGH);
+        digitalWrite(pump_PIN,LOW);
+        digitalWrite(valve1_PIN,HIGH);
+        digitalWrite(buz_PIn,HIGH);
+        delay(5000);
+        digitalWrite(buz_PIn,LOW);
+        //delay(1000*60*PHASE10_Time);
+        delay(300000UL);
+          PHASE = 11;
+      break;
+    case 11:
+        lcd.clear();
+        lcd.setCursor(7,0);
+        lcd.print("STAGE11");
+        lcd.setCursor(7,1);
+        lcd.print("FIN");
+        lcd.setCursor(1,2);
+        lcd.print("T :");
+        lcd.setCursor(1,3);
+        lcd.print(T1_Value);
         digitalWrite(heat1_PIN,LOW);
         //digitalWrite(heat2_PIN,LOW);
         digitalWrite(pump_PIN,LOW);
         digitalWrite(valve1_PIN,LOW);
-        //digitalWrite(buz_PIn,HIGH);
+        digitalWrite(buz_PIn,HIGH);
+        delay(5000);
+        digitalWrite(buz_PIn,LOW);
       break;
      default :
         lcd.clear();
@@ -416,6 +512,6 @@ byte getTemperature(float *temperature, byte reset_search) {
   for (byte i = 0; i < 9; i++) {
     data[i] = ds.read();
   }
-  *temperature = (int16_t) ((data[1] << 8) | data[0]) * 0.0625; 
+  *temperature = (int16_t) ((data[1] << 8) | data[0]) * 0.0625;
   return READ_OK;
 }
